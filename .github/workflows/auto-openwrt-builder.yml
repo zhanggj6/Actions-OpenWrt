@@ -96,17 +96,19 @@ jobs:
     - name: 自动同步.config到仓库
       if: ${{ github.event.inputs.SSH_CONNECT == 'true' && env.AUTO_SAVE_CONFIG == 'true' }}
       run: |
-        cd $GITHUB_WORKSPACE
-        [ -f openwrt/.config ] && cp openwrt/.config ./
-        git config --global user.name "OpenWrt-Actions"
-        git config --global user.email "actions@github.com"
-        git add .config
-        if git diff --cached --quiet .config;then
-          echo ".config无变更，跳过提交"
-          exit 0
-        fi
-        git commit -m "Auto update .config from tmate menuconfig"
-        git push
+       cd $GITHUB_WORKSPACE
+       [ -f openwrt/.config ] && cp openwrt/.config ./
+       git config --global user.name "OpenWrt-Actions"
+       git config --global user.email "actions@github.com"
+       # 关键：改成https地址，用内置token鉴权
+       git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+       git add .config
+       if git diff --cached --quiet .config;then
+         echo ".config无变更，跳过提交"
+         exit 0
+       fi
+       git commit -m "Auto update .config from tmate menuconfig"
+       git push
 
     - name: Download package
       id: package
