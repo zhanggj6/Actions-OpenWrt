@@ -89,8 +89,8 @@ jobs:
       if: ${{ github.event.inputs.SSH_CONNECT == 'true' }}
       uses: mxschmitt/action-tmate@v3
       with:
-        limit-access-to-actor: true
-        timeout-minutes: 90
+       limit-access-to-actor: true
+       connect-timeout-seconds: 5400 # 90分钟=90*60=5400秒，替换原来timeout-minutes:90
 
     # 自动同步新.config回仓库（仅开SSH+自动保存开启才执行）
     - name: 自动同步.config到仓库
