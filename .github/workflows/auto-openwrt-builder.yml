@@ -10,14 +10,14 @@
 # See /LICENSE for more information.
 #
 
-name: Auto OpenWrt Builder
+name: OpenWrt Builder
 
 on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
       SSH_CONNECT:
-        description: 'true=启用Tmate远程SSH,false=正常自动编译'
+        description: 'true开启Tmate远程，false正常编译'
         default: 'false'
         required: false
 
@@ -31,7 +31,7 @@ env:
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
-  AUTO_SAVE_CONFIG: true    # true：配完自动回存.config到仓库；false：不自动覆盖
+  AUTO_SAVE_CONFIG: true
   TZ: Asia/Shanghai
 
 jobs:
@@ -84,30 +84,35 @@ jobs:
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
 
-    # Tmate远程SSH终端
-    - name: Tmate 远程SSH终端
+    # ========== Tmate远程SSH ==========
+    - name: Tmate远程连接
       if: ${{ github.event.inputs.SSH_CONNECT == 'true' }}
       uses: mxschmitt/action-tmate@v3
       with:
-       limit-access-to-actor: true
-       connect-timeout-seconds: 5400 # 90分钟=90*60=5400秒，替换原来timeout-minutes:90
+        limit-access-to-actor: true
 
-    # 自动同步新.config回仓库（仅开SSH+自动保存开启才执行）
-    - name: 自动同步.config到仓库
+    # 无限挂机卡住，不会自动往下跑
+    - name: 挂机等待手动结束配置
+      if: ${{ github.event.inputs.SSH_CONNECT == 'true' }}
+      run: |
+        echo "连接信息在上一步日志，配置完点本步骤Cancel继续任务"
+        while true;do sleep 300;done
+
+    # 配置完自动推送.config回仓库（HTTPS免SSH密钥）
+    - name: 保存新.config到仓库
       if: ${{ github.event.inputs.SSH_CONNECT == 'true' && env.AUTO_SAVE_CONFIG == 'true' }}
       run: |
         cd $GITHUB_WORKSPACE
         [ -f openwrt/.config ] && cp openwrt/.config ./
         git config --global user.name "OpenWrt-Actions"
         git config --global user.email "actions@github.com"
-        # 关键：https协议+内置临时token，绕开SSH密钥校验
         git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
         git add .config
         if git diff --cached --quiet .config;then
-          echo ".config没有改动，跳过提交"
+          echo "配置无改动，跳过提交"
           exit 0
         fi
-        git commit -m "Auto update .config from tmate menuconfig"
+        git commit -m "Auto update config from tmate"
         git push
 
     - name: Download package
@@ -145,6 +150,7 @@ jobs:
       id: organize
       if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
+        [ ! -d openwrt/bin/targets/*/* ] && exit 0
         cd openwrt/bin/targets/*/*
         rm -rf packages
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
